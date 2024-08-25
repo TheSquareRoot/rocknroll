@@ -1,3 +1,4 @@
+import matplotlib.pyplot as plt
 import numpy as np
 
 from typing import Callable, Dict, List, Optional
@@ -7,7 +8,6 @@ from .particle import Particle
 
 
 class ParticleDistribution:
-
     _logger = setup_logging(__name__, "logs/output.log")
 
     def __init__(self,
@@ -67,3 +67,35 @@ class ParticleDistribution:
     @property
     def length(self) -> int:
         return len(self.particles)
+
+    def get_property_distributions(self) -> Dict[str, List[float]]:
+        """Returns a dictionary containing the size, density, and adhesion distributions."""
+        size_distribution = []
+        density_distribution = []
+        adhesion_distribution = []
+
+        for particle in self.particles:
+            size_distribution.append(particle.radius)
+            density_distribution.append(particle.density)
+            adhesion_distribution.append(particle.adhesion)
+
+        return {
+            'size': size_distribution,
+            'density': density_distribution,
+            'adhesion': adhesion_distribution
+        }
+
+    def plot(self, plot_type: str = 'box') -> None:
+        distrib_stats = self.get_property_distributions()
+
+        fig, axs = plt.subplots(1, 3)
+
+        # Plot the distributions
+        if plot_type == 'box':
+            for (ax, distrib) in zip(axs, distrib_stats.values()):
+                ax.boxplot(distrib)
+        elif plot_type == 'violin':
+            for (ax, distrib) in zip(axs, distrib_stats.values()):
+                ax.violinplot(distrib)
+        else:
+            self._logger.critical("plot_type must be either 'box' or 'violin'")
