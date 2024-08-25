@@ -1,5 +1,6 @@
-import matplotlib.pyplot as plt
 import numpy as np
+
+from typing import Callable, Dict, List, Optional
 
 from .config import setup_logging
 from .particle import Particle
@@ -7,65 +8,62 @@ from .particle import Particle
 
 class ParticleDistribution:
 
-    _logger = setup_logging(__name__, "./logs/output.log")
+    _logger = setup_logging(__name__, "logs/output.log")
 
-    def __init__(self, number=None,
-                 radius=None,
-                 density=None,
-                 part_factory=None,
-                 particles=None
-                 ):
+    def __init__(self,
+                 number: int = 1,
+                 part_factory: Optional[Callable] = None,
+                 factory_args: Optional[Dict] = None,
+                 ) -> None:
+        """
+        Contructs a ParticuleDistribution object.
 
-        if particles:
-            self.particles = particles
-        else:
-            if part_factory:
-                if callable(part_factory):
-                    self._logger.debug('Particle factory must be callable')
-                    self.particles = [part_factory() for _ in range(number)]
-                else:
-                    self._logger.error('Particle factory must be callable')
-            else:
-                self._logger.info(f"Creating {number} particle(s) with default factory.")
-                self.particles = self._get_particles(number, radius, density)
+        If the user does not provide a particle factory, the default one is used.
+        """
+        self.part_factory = part_factory or self._default_particle_factory
+        self.factory_args = factory_args or {}
 
-
-    def __add__(self, other):
-        return ParticleDistribution(particles=(self.particles + other.particles))
-
-    @property
-    def number(self):
-        return len(self.particles)
+        # Generate the list of particles
+        self.particles = self._generate_particles(number)
 
     @staticmethod
-    def _default_particle_factory(radius, density, fadh):
-        # Sample a log-normal distribution
-        fadh = np.random.lognormal(mean, stdv, 1)[0]
+    def _default_particle_factory(**kwargs) -> Particle:
+        """By default, particles are generated with a fixed radius and density."""
+        # Unpack arguments
+        radius = kwargs['radius']
+        density = kwargs['density']
 
-        return Particle(radius=radius, density=density, fadh=fadh)
-    
-    @staticmethod
-    def _get_particles(number, radius, density):
-        # Compute mean and stdv from Biasi experiments
+        # Set mean and standard deviation according to Biasi
         mean = np.log(0.016 - 0.0023 * (radius ** 0.545))
         stdv = np.log(1.8 + 0.136 * (radius ** 1.4))
 
-        adhesion = np.random.lognormal(mean, stdv, number)
-        
-        return [Particle(radius=radius, density=density, fadh=fadh) for fadh in adhesion]
-            
+        # Sample a lognormal distribution to get an adhesion force
+        adhesion = np.random.lognormal(mean, stdv, 1).item()
 
-    def get_adhesion(self):
-        return [ particle.fadh for particle in self.particles]
+        return Particle(radius, density, adhesion)
 
-    def plot(self):
-        plt.clf()
-        fadh_array = self.get_adhesion()
+    def _generate_particles(self, number: int) -> List[Particle]:
+        """Generate a list of particles using the provided factory."""
 
-        # plt.violinplot(fadh_array)
-        plt.boxplot(fadh_array)
+        if not callable(self.part_factory):
+            self._logger.critical("part_factory is not callable!")
+            raise TypeError("part_factory must be callable")
 
-        plt.yscale('log')
+        # If part_factory is callable, use it to generate the particle distribution
+        particles = []
+        for _ in range(number):
+            try:
+                particles.append(self.part_factory(**self.factory_args))
+            except KeyError as e:
+                self._logger.critical(f"Error generating particle: Missing argument {e}")
+                raise
+            except Exception as e:
+                self._logger.critical(f"Unexpected error during particle generation: {e}")
+                raise
 
-        plt.show()
+        return particles
 
+    # Some properties
+    @property
+    def length(self) -> int:
+        return len(self.particles)
