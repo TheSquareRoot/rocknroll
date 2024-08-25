@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
+import time
 
 from typing import Callable, Dict, List, Optional
 
@@ -51,6 +52,8 @@ class ParticleDistribution:
 
         # If part_factory is callable, use it to generate the particle distribution
         particles = []
+        self._logger.info(f"Generating {number} particles with {self.part_factory.__name__} and {self.factory_args}")
+        tstart = time.time()
         for _ in range(number):
             try:
                 particles.append(self.part_factory(**self.factory_args))
@@ -61,6 +64,7 @@ class ParticleDistribution:
                 self._logger.critical(f"Unexpected error during particle generation: {e}")
                 raise
 
+        self._logger.info(f"Generated {number} particles in {time.time() - tstart:.2f} seconds")
         return particles
 
     # Some properties
